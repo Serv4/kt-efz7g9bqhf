@@ -94,7 +94,19 @@ button.link{background:none;border:none;color:var(--muted);padding:8px 0;min-hei
 .res{display:grid;grid-template-columns:minmax(0,1fr) 90px 44px;gap:10px;align-items:center;font-size:15px}
 .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%}
 .sticky{position:sticky;bottom:0;padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 70%,transparent)}
-.statbtn{width:100%;text-align:left;margin:16px 0 10px;border-color:var(--accent);color:var(--fg);background:var(--accent-soft);font-weight:500}
+.progbtn{display:flex;flex-direction:column;gap:10px;width:100%;text-align:left;margin:16px 0 10px;padding:16px;border:1px solid var(--accent);background:var(--accent-soft);border-radius:12px;color:var(--fg)}
+.pg-top,.pg-sub{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pg-label{font-family:var(--display);font-size:20px;font-weight:600}
+.pg-pct{font-family:var(--display);font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;color:var(--ok)}
+.pg-track{display:flex;height:14px;border-radius:7px;background:var(--surface);overflow:hidden;border:1px solid var(--line)}
+.seg-g{background:var(--ok-line)}.seg-o{background:var(--accent)}.seg-r{background:var(--bad-line)}
+.pg-track i,.set .mini i{display:block;height:100%;transition:width .6s}
+.pg-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}
+.pg-legend span{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.pg-legend span::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--c)}
+.pg-sub{font-size:14px;color:var(--muted)}
+.set .mini{grid-column:1/-1;display:flex;height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:6px}
+@media (prefers-reduced-motion:reduce){.pg-track i,.set .mini i{transition:none}}
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
 .tile b{display:block;font-family:var(--display);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
@@ -114,7 +126,12 @@ button.link{background:none;border:none;color:var(--muted);padding:8px 0;min-hei
     <h1>Kfz-Prüfungstrainer</h1>
     <p class="lead">Wähle einen Fragenpool. Fragen und Antworten werden jedes Mal neu gemischt. Deine Ergebnisse speichert nur dieses Gerät.</p>
   </div>
-  <button id="openStats" class="statbtn">Statistik: Worin bist du gut, was solltest du üben? →</button>
+  <button id="openStats" class="progbtn" aria-label="Fortschritt und Statistik öffnen">
+    <span class="pg-top"><span class="pg-label">Dein Fortschritt</span><span class="pg-pct" id="pgPct">0 %</span></span>
+    <span class="pg-track" id="pgTrack"></span>
+    <span class="pg-legend" id="pgLegend"></span>
+    <span class="pg-sub"><span id="pgSub">0 von 0 Fragen sitzen</span><span>Statistik →</span></span>
+  </button>
   <div class="sets" id="sets"></div>
 </section>
 
@@ -728,14 +745,16 @@ const level=p=>p==null?["none","noch offen"]:p>=80?["good","sitzt"]:p>=60?["mid"
 function setStats(s){const h=hist(s.id);let r=0,n=0,seen=0;const tp={};
  s.topics.forEach(t=>tp[t]={r:0,n:0,seen:0,all:0});
  s.all.forEach(x=>{const v=h[x.q];tp[x.t].all++;if(v&&v[1]){r+=v[0];n+=v[1];seen++;tp[x.t].r+=v[0];tp[x.t].n+=v[1];tp[x.t].seen++}});
- return{r,n,seen,p:n?Math.round(r/n*100):null,tp,weak:s.all.filter(x=>isWeak(h[x.q]))}}
+ let done=0,half=0,bad=0;s.all.forEach(x=>{const v=h[x.q];if(!v||!v[1])return;if(!isWeak(v))done++;else if(v[0]>0)half++;else bad++});
+ return{r,n,seen,p:n?Math.round(r/n*100):null,tp,weak:s.all.filter(x=>isWeak(h[x.q])),done,half,bad,prog:Math.round(done/s.all.length*100)}}
+const segs=(g,o,r,t)=>[["g",g],["o",o],["r",r]].map(([c,v])=>`<i class="seg-${c}" style="width:${t?v/t*100:0}%"></i>`).join("");
 function renderStats(){let R=0,N=0,S=0,W=0;const box=$("statSets");box.innerHTML="";
  const list=SETS.map(s=>({s,st:setStats(s)}));
  list.forEach(({s,st})=>{R+=st.r;N+=st.n;S+=st.seen;W+=st.weak.length;
   const p=document.createElement("div");p.className="panel";
   const [lc,lt]=level(st.p);
   p.innerHTML=`<div class="trow"><div class="tn"><h2></h2><small></small></div><b style="font-family:var(--display);font-size:22px;text-align:right">${st.p==null?"–":st.p+" %"}</b><span class="lvl ${lc}">${lt}</span></div>`;
-  p.querySelector("h2").textContent=s.name;p.querySelector("small").textContent=`${st.seen} von ${s.all.length} Fragen geübt`;
+  p.querySelector("h2").textContent=s.name;p.querySelector("small").textContent=`${st.seen} von ${s.all.length} geübt · Fortschritt ${st.prog} %`;
   if(st.seen){
    const rows=s.topics.map(t=>({t,...st.tp[t],p:st.tp[t].n?Math.round(st.tp[t].r/st.tp[t].n*100):null})).sort((a,b)=>(a.p==null?101:a.p)-(b.p==null?101:b.p));
    if(s.topics.length>1)rows.forEach(x=>{const [c,l]=level(x.p);const d=document.createElement("div");d.className="trow";
@@ -749,7 +768,8 @@ function renderStats(){let R=0,N=0,S=0,W=0;const box=$("statSets");box.innerHTML
     b.onclick=()=>{set=s;begin(shuffle(st.weak).slice(0,20))};p.appendChild(b)}
   }else{const e=document.createElement("p");e.className="src";e.textContent="Noch nicht geübt.";p.appendChild(e)}
   box.appendChild(p)});
- const tiles=[[N?Math.round(R/N*100)+" %":"–","richtig insgesamt"],[S,"Fragen geübt"],[W,"Fragen zum Üben"]];
+ const D=list.reduce((a,x)=>a+x.st.done,0),T=SETS.reduce((a,s)=>a+s.all.length,0);
+ const tiles=[[Math.round(D/T*100)+" %","Fortschritt"],[N?Math.round(R/N*100)+" %":"–","richtig insgesamt"],[W,"Fragen zum Üben"]];
  $("statTiles").innerHTML="";tiles.forEach(([v,l])=>{const d=document.createElement("div");d.className="tile";d.innerHTML="<b></b><span></span>";d.querySelector("b").textContent=v;d.querySelector("span").textContent=l;$("statTiles").appendChild(d)});
  $("resetConfirm").hidden=true;$("resetAsk").hidden=false;view("statsv")}
 $("openStats").onclick=renderStats;$("toStats").onclick=renderStats;$("back3").onclick=()=>renderHome();
@@ -757,10 +777,14 @@ $("resetAsk").onclick=()=>{$("resetAsk").hidden=true;$("resetConfirm").hidden=fa
 $("resetNo").onclick=()=>{$("resetAsk").hidden=false;$("resetConfirm").hidden=true};
 $("resetYes").onclick=()=>{SETS.forEach(s=>["hist:","err:","last:"].forEach(k=>{try{localStorage.removeItem("kfztrainer:"+k+s.id)}catch(e){}}));renderStats()};
 function renderHome(){const box=$("sets");box.innerHTML="";
+ {let d=0,hf=0,b=0,t=0;SETS.forEach(s=>{const st=setStats(s);d+=st.done;hf+=st.half;b+=st.bad;t+=s.all.length});const p=t?Math.round(d/t*100):0;
+  $("pgPct").textContent=p+" %";$("pgSub").textContent=`${d} von ${t} Fragen sitzen`;$("pgTrack").innerHTML=segs(d,hf,b,t);
+  $("pgLegend").innerHTML=`<span style="--c:var(--ok-line)">${d} sitzt</span><span style="--c:var(--accent)">${hf} so halb</span><span style="--c:var(--bad-line)">${b} sitzt nicht</span><span style="--c:var(--line)">${t-d-hf-b} offen</span>`}
  SETS.forEach(s=>{const last=store.get("last:"+s.id);const b=document.createElement("button");b.className="set";
   b.innerHTML=`<span class="name"></span><span class="info"></span><span class="last"></span>`;
   b.querySelector(".name").textContent=s.name;b.querySelector(".info").textContent=`${s.all.length} Fragen · ${s.origins.includes("orig")?"Original-Prüfungsfragen":s.origins.includes("test")?"aus deiner Klassenarbeit":s.topics.length+" Themen"}`;
-  {const st=setStats(s);b.querySelector(".last").innerHTML=st.p==null?"noch<b>–</b>":`gesamt<b>${st.p} %</b>`;}
+  {const st=setStats(s);b.querySelector(".last").innerHTML=`Fortschritt<b>${st.prog} %</b>`;
+   const m=document.createElement("span");m.className="mini";m.innerHTML=segs(st.done,st.half,st.bad,s.all.length);b.appendChild(m);}
   b.onclick=()=>openSet(s);box.appendChild(b)});view("home")}
 function openSet(s){set=s;$("setTitle").textContent=s.name;$("setLead").textContent=s.lead;$("setupErr").textContent="";
  $("topicPanel").hidden=s.topics.length<2;const chips=$("chips");chips.innerHTML="";

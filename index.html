@@ -94,6 +94,16 @@ button.link{background:none;border:none;color:var(--muted);padding:8px 0;min-hei
 .res{display:grid;grid-template-columns:minmax(0,1fr) 90px 44px;gap:10px;align-items:center;font-size:15px}
 .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%}
 .sticky{position:sticky;bottom:0;padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 70%,transparent)}
+.statbtn{width:100%;text-align:left;margin:16px 0 10px;border-color:var(--accent);color:var(--fg);background:var(--accent-soft);font-weight:500}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
+.tile b{display:block;font-family:var(--display);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.tile span{font-size:13px;color:var(--muted)}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) 70px 64px;gap:8px;align-items:center;font-size:15px}
+.trow .tn{min-width:0}.trow .tn small{display:block;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.lvl{font-size:12px;font-weight:500;border-radius:999px;padding:3px 8px;text-align:center;white-space:nowrap}
+.lvl.good{background:var(--ok-soft);color:var(--ok)}.lvl.mid{background:var(--warn-soft);color:var(--warn)}.lvl.bad{background:var(--bad-soft);color:var(--bad)}.lvl.none{background:var(--bg);color:var(--muted)}
+.tip{margin:0;font-size:15px}
 @media (prefers-reduced-motion:reduce){.fill{transition:none}}
 </style>
 
@@ -104,7 +114,24 @@ button.link{background:none;border:none;color:var(--muted);padding:8px 0;min-hei
     <h1>Kfz-Prüfungstrainer</h1>
     <p class="lead">Wähle einen Fragenpool. Fragen und Antworten werden jedes Mal neu gemischt. Deine Ergebnisse speichert nur dieses Gerät.</p>
   </div>
-  <div class="sets" id="sets" style="margin-top:16px"></div>
+  <button id="openStats" class="statbtn">Statistik: Worin bist du gut, was solltest du üben? →</button>
+  <div class="sets" id="sets"></div>
+</section>
+
+<section id="statsv" hidden>
+  <div>
+    <button class="link" id="back3">← Alle Fragenpools</button>
+    <h1>Deine Statistik</h1>
+    <p class="lead">Gezählt wird jede beantwortete Frage auf diesem Gerät. Die schwächsten Themen stehen oben.</p>
+  </div>
+  <div class="tiles" id="statTiles"></div>
+  <div id="statSets" class="sets"></div>
+  <div class="panel" id="resetBox">
+    <h2>Statistik zurücksetzen</h2>
+    <p class="src">Löscht alle gespeicherten Ergebnisse und Fehler auf diesem Gerät.</p>
+    <div class="row"><button id="resetAsk">Zurücksetzen</button></div>
+    <div class="row" id="resetConfirm" hidden><button class="primary" id="resetYes">Ja, alles löschen</button><button id="resetNo">Abbrechen</button></div>
+  </div>
 </section>
 
 <section id="setup" hidden>
@@ -155,7 +182,7 @@ button.link{background:none;border:none;color:var(--muted);padding:8px 0;min-hei
   <p class="lead" id="endTxt"></p>
   <div class="panel" id="byTopic"></div>
   <div class="row"><button class="primary" id="redo">Nur Fehler wiederholen</button><button id="again">Neue Runde</button></div>
-  <button class="link" id="home2">← Alle Fragenpools</button>
+  <div class="row"><button class="link" id="home2">← Alle Fragenpools</button><button class="link" id="toStats">Zur Statistik →</button></div>
 </section>
 </main>
 <script>
@@ -693,12 +720,47 @@ const $=id=>document.getElementById(id);
 const store={get(k){try{return JSON.parse(localStorage.getItem("kfztrainer:"+k))}catch(e){return null}},set(k,v){try{localStorage.setItem("kfztrainer:"+k,JSON.stringify(v))}catch(e){}}};
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 let set=null,count=20,order=[],pos=0,score=0,answered=false,picked=new Set(),wrong=[],stats={},cur=null;
-function view(id){["home","setup","quiz","end"].forEach(s=>$(s).hidden=s!==id);window.scrollTo(0,0)}
+function view(id){["home","setup","quiz","end","statsv"].forEach(s=>$(s).hidden=s!==id);window.scrollTo(0,0)}
+const hist=id=>store.get("hist:"+id)||{};
+function record(id,q,ok){const h=hist(id);const v=h[q]||[0,0,0];v[0]+=ok?1:0;v[1]++;v[2]=ok?1:0;h[q]=v;store.set("hist:"+id,h)}
+const isWeak=v=>v&&v[1]>0&&(v[2]===0||v[0]/v[1]<0.67);
+const level=p=>p==null?["none","noch offen"]:p>=80?["good","sitzt"]:p>=60?["mid","fast"]:["bad","üben"];
+function setStats(s){const h=hist(s.id);let r=0,n=0,seen=0;const tp={};
+ s.topics.forEach(t=>tp[t]={r:0,n:0,seen:0,all:0});
+ s.all.forEach(x=>{const v=h[x.q];tp[x.t].all++;if(v&&v[1]){r+=v[0];n+=v[1];seen++;tp[x.t].r+=v[0];tp[x.t].n+=v[1];tp[x.t].seen++}});
+ return{r,n,seen,p:n?Math.round(r/n*100):null,tp,weak:s.all.filter(x=>isWeak(h[x.q]))}}
+function renderStats(){let R=0,N=0,S=0,W=0;const box=$("statSets");box.innerHTML="";
+ const list=SETS.map(s=>({s,st:setStats(s)}));
+ list.forEach(({s,st})=>{R+=st.r;N+=st.n;S+=st.seen;W+=st.weak.length;
+  const p=document.createElement("div");p.className="panel";
+  const [lc,lt]=level(st.p);
+  p.innerHTML=`<div class="trow"><div class="tn"><h2></h2><small></small></div><b style="font-family:var(--display);font-size:22px;text-align:right">${st.p==null?"–":st.p+" %"}</b><span class="lvl ${lc}">${lt}</span></div>`;
+  p.querySelector("h2").textContent=s.name;p.querySelector("small").textContent=`${st.seen} von ${s.all.length} Fragen geübt`;
+  if(st.seen){
+   const rows=s.topics.map(t=>({t,...st.tp[t],p:st.tp[t].n?Math.round(st.tp[t].r/st.tp[t].n*100):null})).sort((a,b)=>(a.p==null?101:a.p)-(b.p==null?101:b.p));
+   if(s.topics.length>1)rows.forEach(x=>{const [c,l]=level(x.p);const d=document.createElement("div");d.className="trow";
+    d.innerHTML=`<div class="tn"><span></span><small>${x.seen}/${x.all} geübt</small></div><div class="bar"><i style="width:${x.p==null?0:Math.max(x.p,4)}%;background:${c==="good"?"var(--ok-line)":c==="mid"?"var(--accent)":"var(--bad-line)"}"></i></div><span class="lvl ${c}">${x.p==null?"–":x.p+" %"}</span>`;
+    d.querySelector(".tn span").textContent=x.t;p.appendChild(d)});
+   const weakT=rows.filter(x=>x.p!=null&&x.p<60).map(x=>x.t),open=rows.filter(x=>x.p==null).map(x=>x.t);
+   const tip=document.createElement("p");tip.className="tip";
+   tip.textContent=weakT.length?`Hier solltest du mehr lernen: ${weakT.join(", ")}.`:open.length?`Gut dabei. Noch nicht geübt: ${open.join(", ")}.`:"Stark! Alle Themen liegen bei 60 % oder mehr.";
+   p.appendChild(tip);
+   if(st.weak.length){const b=document.createElement("button");b.className="primary";b.textContent=`Schwächen üben (${st.weak.length} Fragen)`;
+    b.onclick=()=>{set=s;begin(shuffle(st.weak).slice(0,20))};p.appendChild(b)}
+  }else{const e=document.createElement("p");e.className="src";e.textContent="Noch nicht geübt.";p.appendChild(e)}
+  box.appendChild(p)});
+ const tiles=[[N?Math.round(R/N*100)+" %":"–","richtig insgesamt"],[S,"Fragen geübt"],[W,"Fragen zum Üben"]];
+ $("statTiles").innerHTML="";tiles.forEach(([v,l])=>{const d=document.createElement("div");d.className="tile";d.innerHTML="<b></b><span></span>";d.querySelector("b").textContent=v;d.querySelector("span").textContent=l;$("statTiles").appendChild(d)});
+ $("resetConfirm").hidden=true;$("resetAsk").hidden=false;view("statsv")}
+$("openStats").onclick=renderStats;$("toStats").onclick=renderStats;$("back3").onclick=()=>renderHome();
+$("resetAsk").onclick=()=>{$("resetAsk").hidden=true;$("resetConfirm").hidden=false};
+$("resetNo").onclick=()=>{$("resetAsk").hidden=false;$("resetConfirm").hidden=true};
+$("resetYes").onclick=()=>{SETS.forEach(s=>["hist:","err:","last:"].forEach(k=>{try{localStorage.removeItem("kfztrainer:"+k+s.id)}catch(e){}}));renderStats()};
 function renderHome(){const box=$("sets");box.innerHTML="";
  SETS.forEach(s=>{const last=store.get("last:"+s.id);const b=document.createElement("button");b.className="set";
   b.innerHTML=`<span class="name"></span><span class="info"></span><span class="last"></span>`;
   b.querySelector(".name").textContent=s.name;b.querySelector(".info").textContent=`${s.all.length} Fragen · ${s.origins.includes("orig")?"Original-Prüfungsfragen":s.origins.includes("test")?"aus deiner Klassenarbeit":s.topics.length+" Themen"}`;
-  b.querySelector(".last").innerHTML=last?`zuletzt<b>${last.p} %</b>`:"noch<b>–</b>";
+  {const st=setStats(s);b.querySelector(".last").innerHTML=st.p==null?"noch<b>–</b>":`gesamt<b>${st.p} %</b>`;}
   b.onclick=()=>openSet(s);box.appendChild(b)});view("home")}
 function openSet(s){set=s;$("setTitle").textContent=s.name;$("setLead").textContent=s.lead;$("setupErr").textContent="";
  $("topicPanel").hidden=s.topics.length<2;const chips=$("chips");chips.innerHTML="";
@@ -740,7 +802,7 @@ $("check").onclick=()=>{if(!picked.size){$("qErr").textContent="Wähle zuerst mi
 function evaluate(){answered=true;$("check").hidden=true;const m=isMulti(cur),btn=$("opts").children;
  const ok=m?cur.opts.every((o,k)=>!!o.ok===picked.has(k)):!!cur.opts[[...picked][0]].ok;
  cur.opts.forEach((o,k)=>{btn[k].classList.remove("sel");if(o.ok)btn[k].classList.add("ok");else if(picked.has(k))btn[k].classList.add("no")});
- stats[cur.t]=stats[cur.t]||{r:0,n:0};stats[cur.t].n++;if(ok){score++;stats[cur.t].r++}else wrong.push(cur);
+ stats[cur.t]=stats[cur.t]||{r:0,n:0};stats[cur.t].n++;if(ok){score++;stats[cur.t].r++}else wrong.push(cur);record(set.id,cur.q,ok);
  $("exp").innerHTML=(ok?'<b class="ok">Richtig.</b> ':'<b class="no">Leider falsch.</b> ');$("exp").append(cur.e);$("exp").hidden=false;
  if(cur.warn){$("warn").textContent="⚠ "+cur.warn;$("warn").hidden=false}
  if(cur.s){$("src").textContent="Quelle: "+cur.s;$("src").hidden=false}

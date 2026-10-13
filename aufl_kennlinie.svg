@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -40 640 440" font-family="Arial, Helvetica, sans-serif" font-size="13">
+<rect y="-40" width="640" height="440" fill="#fff"/>
+<g stroke="#e3e6ea" stroke-width="1">
+ <path d="M70 60 H600 M70 110 H600 M70 160 H600 M70 210 H600 M70 260 H600 M70 310 H600"/>
+ <path d="M158 40 V340 M246 40 V340 M334 40 V340 M422 40 V340 M510 40 V340"/>
+</g>
+<path d="M70 30 V340 H610" stroke="#333" stroke-width="2" fill="none"/>
+<g text-anchor="middle" fill="#333">
+ <text x="158" y="358">1000</text><text x="246" y="358">2000</text><text x="334" y="358">3000</text><text x="422" y="358">4000</text><text x="510" y="358">5000</text>
+ <text x="340" y="384">Motordrehzahl n in 1/min</text>
+</g>
+<text x="14" y="190" transform="rotate(-90 14 190)" text-anchor="middle">Drehmoment M / Leistung P</text>
+<!-- Motor A: ohne Aufladung -->
+<path d="M110 250 C170 225 260 212 334 214 S470 228 540 248" stroke="#2e86c1" stroke-width="3" fill="none"/>
+<path d="M110 330 C200 305 330 265 420 245 S520 232 560 236" stroke="#2e86c1" stroke-width="3" stroke-dasharray="8 6" fill="none"/>
+<!-- Motor B: mit ATL -->
+<path d="M110 200 C150 150 190 110 246 100 L510 100 C535 105 550 118 560 132" stroke="#e2630f" stroke-width="3" fill="none"/>
+<path d="M110 320 C200 270 300 200 400 150 S520 92 560 86" stroke="#e2630f" stroke-width="3" stroke-dasharray="8 6" fill="none"/>
+<g font-size="12">
+ <path d="M60 -18 H88" stroke="#e2630f" stroke-width="3"/><text x="94" y="-14">Motor B Drehmoment</text>
+ <path d="M240 -18 H268" stroke="#e2630f" stroke-width="3" stroke-dasharray="7 5"/><text x="274" y="-14">Motor B Leistung</text>
+ <path d="M60 4 H88" stroke="#2e86c1" stroke-width="3"/><text x="94" y="8">Motor A Drehmoment</text>
+ <path d="M240 4 H268" stroke="#2e86c1" stroke-width="3" stroke-dasharray="7 5"/><text x="274" y="8">Motor A Leistung</text>
+</g>
+<text x="610" y="390" text-anchor="end" font-size="10" fill="#777">Prinzipdarstellung, gleicher Hubraum</text>
+</svg>
